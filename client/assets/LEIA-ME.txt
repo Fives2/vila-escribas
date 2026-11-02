@@ -1,0 +1,20 @@
+ASSETS DA VILA DOS ESCRIBAS
+===========================
+
+Arte original do kit da disciplina (uso livre nos trabalhos da disciplina):
+tileset-vila.png   peças do cenário, 16x16 px (64 peças, 16 por linha)
+sprites-vila.png   casa e canteiro do kit (não usados nesta vila)
+vila.json          o mapa (formato Tiled), 18 x 9 peças
+
+Arte criada para esta vila (pixel art própria, no estilo do kit):
+estruturas-escribas.png   4 quadros de 32x32 px:
+                          0 Scriptorium | 1 Bancada de encadernação |
+                          2 Estante | 3 Depósito de Tinta e Papel
+
+CAMADAS DO MAPA
+  chao         grama, caminho e água
+  decoracao    árvores, pedras, cerca (o canto superior esquerdo foi limpo
+               para o depósito)
+  pontos       (objetos) scriptorium, bancada, estante = estruturas fixas
+                         deposito = canto superior esquerdo, de onde
+                         "sobem" os +10 de Tinta e Papel

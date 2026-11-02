@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vila dos Escribas</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 12px;
+           background: #f6ecd2; color: #3b2a14; }
+    h1 { margin: 0 0 6px; }
+    h2 { margin: 0 0 8px; font-size: 16px; }
+    .cartao, .painel, .estante, .encomendas, .acoes { border: 1px solid #a8743a; border-radius: 8px;
+           padding: 12px; margin: 12px 0; background: #fffaf0; }
+    .painel p { margin: 6px 0; }
+    button { padding: 8px 14px; margin: 2px 6px 2px 0; border-radius: 6px; border: 1px solid #7c5028;
+             background: #e8d3a2; cursor: pointer; font-weight: 600; color: #3b2a14; }
+    button:hover { background: #f0dfb8; }
+    input[type=text], input:not([type]) { padding: 8px; margin-bottom: 8px; width: 100%; box-sizing: border-box; }
+    .avisos { list-style: none; padding: 0; }
+    .avisos li { padding: 6px 10px; margin: 4px 0; border-radius: 6px; background: #eef; }
+    .avisos li.ok { background: #dfd; }
+    .avisos li.erro { background: #fdd; }
+    #jogo { margin: 12px 0; border-radius: 8px; overflow: hidden; line-height: 0; border: 2px solid #7c5028; }
+    #jogo canvas { width: 100% !important; height: auto !important; image-rendering: pixelated; }
+
+    .acoes .linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+    .cor { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid #a8743a;
+           border-radius: 14px; cursor: pointer; font-size: 13px; background: #fff; }
+    .cor.marcada { background: #f0dfb8; border-width: 2px; padding: 2px 7px; }
+    .cor input { display: none; }
+    .bolinha { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #0006; }
+    .livros { display: flex; gap: 6px; min-height: 40px; align-items: flex-end; }
+    .livro { width: 22px; height: 38px; border-radius: 3px; border: 1px solid #0008; box-shadow: inset 4px 0 #ffffff40; }
+    .livro.vazio { background: transparent; border: 1px dashed #a8743a; box-shadow: none; }
+    .encomendas ul { list-style: none; padding: 0; margin: 0; }
+    .encomendas li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dotted #a8743a; flex-wrap: wrap; }
+    .encomendas li:last-child { border-bottom: none; }
+    .vazio-txt { font-size: 13px; color: #8a6a3a; margin: 4px 0; }
+
+    .eventos { border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 12px 0; background: #fafafa; color: #222; }
+    .eventos h2 { margin: 0 0 6px; font-size: 16px; }
+    .eventos .legenda { font-size: 12px; margin: 4px 0 8px; }
+    .eventos label { font-size: 12px; display: block; margin-bottom: 6px; }
+    .eventos input { width: auto; margin: 0 6px 0 0; }
+    .eventos ul { list-style: none; padding: 0; margin: 0; max-height: 280px; overflow-y: auto;
+                  font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+    .eventos li { padding: 4px 8px; margin: 4px 0; border-left: 4px solid #999; background: #fff; }
+    .eventos li.pedido { border-color: #1976d2; }
+    .eventos li.fato { border-color: #2e7d32; }
+    .eventos li.recusa { border-color: #c62828; }
+    .eventos .causa, .eventos .dados { color: #666; }
+    .eventos .reacao { color: #1b5e20; }
+    .eventos .hora { color: #888; }
+    .eventos .vazio { font-size: 12px; color: #888; }
+    .badge { display: inline-block; padding: 0 6px; border-radius: 4px; color: #fff; font-size: 11px; margin-right: 6px; }
+    .badge.emit { background: #1976d2; }
+    .badge.on { background: #2e7d32; }
+    .chip { display: inline-block; background: #eee; border-radius: 10px; padding: 1px 8px; margin: 0 4px 4px 0; font-size: 11px; }
+    footer { margin-top: 32px; font-size: 13px; color: #6b5330; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Tela de entrada -->
+  <section v-if="!conectado" class="cartao">
+    <h1>📜 Vila dos Escribas</h1>
+    <input v-model="nome" placeholder="Seu nome">
+    <button @click="entrar('mestre')">Entrar como Mestre</button>
+    <button @click="entrar('jogador')">Entrar como Jogador</button>
+  </section>
+
+  <!-- Tela da vila -->
+  <main v-else>
+    <h1>📜 Vila dos Escribas</h1>
+    <p>{{ papel }}: <strong>{{ nome || "Anônimo" }}</strong> · Temporada: <strong>{{ estado.fase }}</strong></p>
+
+    <!-- A vila desenhada pelo Phaser aparece aqui -->
+    <div id="jogo"></div>
+
+    <section class="painel">
+      <p>🖋️📜 Tinta e Papel: <strong>{{ estado.tinta_papel }}</strong> (+{{ porMinuto }}/min)</p>
+      <p>✍️ Escribas ocupados: {{ estado.escribas }}/{{ estado.limite }}
+        <progress :value="estado.escribas" :max="estado.limite"></progress></p>
+      <p>📜 Manuscritos: <strong>{{ estado.manuscritos }}</strong>
+         · escrevendo: {{ estado.escrevendo }} · encadernando: {{ estado.encadernando }}</p>
+      <p>🪙 Ouro: <strong>{{ estado.ouro }}</strong>
+         · entregues: {{ estado.entregues }} · perdidas: {{ estado.expiradas }}</p>
+    </section>
+
+    <section v-if="papel === 'mestre'">
+      <button @click="abrirVila">Abrir temporada</button>
+      <button @click="encerrarVila">Encerrar temporada</button>
+    </section>
+
+    <section v-else class="acoes">
+      <h2>🏛️ Scriptorium e 🔨 Bancada</h2>
+      <div class="linha">
+        <button @click="escrever">✒️ Escrever (custo {{ estado.custo_escrita }} 🖋️📜)</button>
+      </div>
+      <div class="linha">
+        <label v-for="c in estado.cores" :key="c" class="cor" :class="{ marcada: cor === c }">
+          <input type="radio" :value="c" v-model="cor">
+          <span class="bolinha" :style="{ background: hex[c] }"></span>{{ c }}
+        </label>
+        <button @click="encadernar">🔨 Encadernar em {{ cor }}</button>
+      </div>
+    </section>
+
+    <section class="estante">
+      <h2>📚 Estante ({{ estado.estante.length }}/{{ estado.capacidade }})</h2>
+      <div class="livros">
+        <span v-for="(c, i) in estado.estante" :key="i" class="livro" :style="{ background: hex[c] }" :title="'livro ' + c"></span>
+        <span v-for="n in vagas" :key="'v' + n" class="livro vazio"></span>
+      </div>
+    </section>
+
+    <section class="encomendas">
+      <h2>📬 Encomendas (prazo limite)</h2>
+      <p v-if="!estado.encomendas.length" class="vazio-txt">Nenhuma encomenda no momento.</p>
+      <ul>
+        <li v-for="e in estado.encomendas" :key="e.id">
+          <span class="bolinha" :style="{ background: hex[e.cor] }"></span>
+          <span>Livro <strong>{{ e.cor }}</strong></span>
+          <span>⏳ {{ restanteDe(e) }}s</span>
+          <span>🪙 {{ e.valor }}</span>
+          <button v-if="papel === 'jogador'" @click="entregar(e.id)">📦 Entregar</button>
+        </li>
+      </ul>
+    </section>
+
+    <ul class="avisos">
+      <li v-for="a in avisos" :class="a.tipo">{{ a.texto }}</li>
+    </ul>
+
+    <!-- PAINEL DE EVENTOS: mostra o paradigma funcionando (emit, on, causa e reação) -->
+    <section class="eventos">
+      <h2>📡 Painel de eventos</h2>
+      <p class="legenda">
+        <span class="badge emit">⬆ emit</span> este cliente PEDIU algo ao servidor ·
+        <span class="badge on">⬇ on</span> este cliente ESCUTOU um evento e reagiu
+      </p>
+      <div class="contadores">
+        <span v-for="(n, nomeEvento) in contadores" class="chip">{{ nomeEvento }} ×{{ n }}</span>
+      </div>
+      <label><input type="checkbox" v-model="ocultarProducao"> ocultar recurso.produzido (é muito frequente)</label>
+      <ul>
+        <li v-for="e in eventosVisiveis" :class="e.tipo">
+          <span class="badge" :class="e.sentido === 'enviado' ? 'emit' : 'on'">{{ e.sentido === 'enviado' ? '⬆ emit' : '⬇ on' }}</span>
+          <strong>{{ e.nome }}</strong> <span class="hora">{{ e.hora }}</span>
+          <div v-if="e.causa" class="causa">causa: {{ e.causa }}</div>
+          <div v-if="e.dados" class="dados">dados: {{ e.dados }}</div>
+          <div v-if="e.reacao" class="reacao">↪ reação: {{ e.reacao }}</div>
+        </li>
+      </ul>
+      <p v-if="!eventosVisiveis.length" class="vazio">Nenhum evento ainda. Faça uma ação.</p>
+    </section>
+  </main>
+
+  <footer>Desenvolvido por: Rafael Schwambach</footer>
+</div>
+
+<script src="https://unpkg.com/vue@3.5.13/dist/vue.global.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+
+<script>
+  // =====================================================================
+  //  A VILA DESENHADA (Phaser) - adaptada para a Vila dos Escribas.
+  //  O cenário é um MAPA (Tilemap) feito no Tiled: client/assets/vila.json.
+  //  As estruturas (Scriptorium, Bancada, Estante e o Depósito de Tinta e
+  //  Papel) JÁ EXISTEM no mapa: ficam nos pontos scriptorium, bancada,
+  //  estante e deposito (o depósito fica no canto superior esquerdo).
+  //  Cada método abaixo reage a UM evento do servidor.
+  // =====================================================================
+  function criarJogo() {
+    let cena = null;          // a cena, quando já estiver pronta
+    let partida = null;       // o jogo Phaser
+    const fila = [];          // chamadas feitas antes da cena existir
+    const chamar = (nome, ...args) => (cena ? cena[nome](...args) : fila.push([nome, args]));
+
+    const COR_HEX = { vermelho: 0xc0392b, azul: 0x2e6fd1, verde: 0x2e8b57, preto: 0x2b2b2b };
+
+    class VilaScene extends Phaser.Scene {
+      constructor() { super("vila"); }
+
+      preload() {
+        this.load.image("tiles", "assets/tileset-vila.png");                       // peças do cenário
+        this.load.spritesheet("estruturas", "assets/estruturas-escribas.png",      // as 4 estruturas
+          { frameWidth: 32, frameHeight: 32 });
+        this.load.tilemapTiledJSON("mapa", "assets/vila.json");                    // o mapa
+      }
+
+      create() {
+        // 1) o mapa: duas camadas de peças (chão e decoração)
+        const mapa = this.make.tilemap({ key: "mapa" });
+        const tileset = mapa.addTilesetImage("tileset-vila", "tiles");   // nome no Tiled, chave da imagem
+        mapa.createLayer("chao", tileset);
+        mapa.createLayer("decoracao", tileset);
+
+        // 2) pontos marcados no mapa: onde ficam as estruturas
+        const pontos = mapa.getObjectLayer("pontos").objects;
+        this.pt = {};
+        pontos.forEach((p) => { this.pt[p.name] = p; });
+
+        // 3) câmera: o mapa é pequeno (pixel art), então damos zoom 2x
+        this.cameras.main.setZoom(2).centerOn(mapa.widthInPixels / 2, mapa.heightInPixels / 2);
+        this.larg = mapa.widthInPixels;
+        this.alt = mapa.heightInPixels;
+
+        // 4) as estruturas já existem desde o começo
+        const estrutura = (nome, quadro, rotulo, dy) => {
+          const { x, y } = this.pt[nome];
+          this.add.sprite(x, y, "estruturas", quadro).setDepth(2);
+          this.add.text(x, y + dy, rotulo, {
+            fontSize: "7px", color: "#ffffff", backgroundColor: "#00000088",
+            padding: { x: 2, y: 1 }, resolution: 2,
+          }).setOrigin(0.5).setDepth(3);
+        };
+        estrutura("scriptorium", 0, "Scriptorium", -20);
+        estrutura("bancada", 1, "Bancada", -20);
+        estrutura("estante", 2, "Estante", -20);
+        estrutura("deposito", 3, "Tinta e Papel", 20);
+
+        this.obras = { scriptorium: [], bancada: [] };   // obras em andamento (FIFO)
+        this.livrosEstante = [];                         // retângulos dos livros na estante
+        this.faixa = this.add.text(this.larg / 2, this.alt - 8, "⏳ Aguardando o Mestre", {
+          fontSize: "8px", color: "#ffffff", backgroundColor: "#00000099",
+          padding: { x: 5, y: 2 }, resolution: 2,
+        }).setOrigin(0.5).setDepth(10);
+
+        cena = this;
+        fila.splice(0).forEach(([nome, args]) => this[nome](...args));
+      }
+
+      // ----- apoio -----
+      iniciarObra(estrutura, duracao, cor) {
+        const { x, y } = this.pt[estrutura];
+        const lista = this.obras[estrutura];
+        let slot = 0;                                   // primeira linha de barra livre
+        while (lista.some((o) => o.slot === slot)) slot++;
+        const yb = y + 17 + slot * 4;
+        const fundo = this.add.rectangle(x - 12, yb, 24, 3, 0x333333).setOrigin(0, 0.5).setDepth(4);
+        const barra = this.add.rectangle(x - 12, yb, 24, 3, cor || 0xffd54a).setOrigin(0, 0.5).setDepth(5);
+        barra.scaleX = 0;
+        this.tweens.add({ targets: barra, scaleX: 1, duration: duracao });
+        lista.push({ fundo, barra, slot });
+      }
+      concluirObra(estrutura) {
+        const obra = this.obras[estrutura].shift();     // a primeira a começar é a primeira a terminar
+        if (obra) { obra.fundo.destroy(); obra.barra.destroy(); }
+      }
+      redesenharEstante(cores) {
+        this.livrosEstante.forEach((o) => o.destroy());
+        this.livrosEstante = [];
+        const { x, y } = this.pt.estante;
+        const esq = x - 16, topo = y - 16;
+        cores.slice(0, 6).forEach((c, i) => {           // 3 livros por prateleira
+          const cx = esq + 9.5 + (i % 3) * 6;
+          const cy = topo + (i < 3 ? 9.5 : 20.5);
+          const livro = this.add.rectangle(cx, cy, 5, 7, COR_HEX[c]).setDepth(3);
+          const lombada = this.add.rectangle(cx - 1.5, cy, 1, 5, 0xffffff, 0.35).setDepth(3);
+          this.tweens.add({ targets: livro, scaleY: { from: 0.2, to: 1 }, duration: 250 });
+          this.livrosEstante.push(livro, lombada);
+        });
+      }
+      flutuar(texto, x, y, cor) {
+        const t = this.add.text(x, y, texto, {
+          fontSize: "8px", color: cor, fontStyle: "bold", stroke: "#ffffff",
+          strokeThickness: 2, resolution: 2,
+        }).setOrigin(0.5).setDepth(8);
+        this.tweens.add({ targets: t, y: y - 16, alpha: 0, duration: 1400, onComplete: () => t.destroy() });
+      }
+
+      // ----- um método para cada evento do servidor -----
+      mostrarEstado(estado) {                 // estado.sincronizado
+        this.redesenharEstante(estado.estante);
+        for (let i = 0; i < estado.escrevendo; i++) this.iniciarObra("scriptorium", estado.tempo_escrita * 1000);
+        for (let i = 0; i < estado.encadernando; i++) this.iniciarObra("bancada", estado.tempo_encadernacao * 1000);
+        if (estado.fase === "aberta") this.vilaIniciada();
+        if (estado.fase === "encerrada") this.vilaEncerrada();
+      }
+      vilaIniciada() {                        // vila.iniciada
+        this.faixa.setText("☀️ Temporada aberta");
+      }
+      escritaIniciada(estado) {               // escrita.iniciada
+        this.iniciarObra("scriptorium", estado.tempo_escrita * 1000);
+        const d = this.pt.deposito;
+        this.flutuar("-" + estado.custo_escrita + " 🖋️📜", d.x, d.y, "#b00020");
+      }
+      escritaConcluida(estado) {              // escrita.concluida
+        this.concluirObra("scriptorium");
+        const s = this.pt.scriptorium;
+        this.flutuar("📜 Manuscrito pronto!", s.x, s.y - 22, "#1b5e20");
+      }
+      encadernacaoIniciada(estado, cor) {     // encadernacao.iniciada
+        this.iniciarObra("bancada", estado.tempo_encadernacao * 1000, COR_HEX[cor]);
+        const b = this.pt.bancada;
+        this.flutuar("-1 📜", b.x, b.y - 22, "#b00020");
+      }
+      encadernacaoConcluida(estado, cor) {    // encadernacao.concluida
+        this.concluirObra("bancada");
+        this.redesenharEstante(estado.estante);
+        const e = this.pt.estante;
+        this.flutuar("📕 Livro " + cor, e.x, e.y - 22, "#1b5e20");
+      }
+      recursoProduzido(estado) {              // recurso.produzido
+        const d = this.pt.deposito;
+        this.flutuar("+" + estado.producao + " 🖋️📜", d.x, d.y, "#1b5e20");
+      }
+      encomendaCriada(estado, cor) {          // encomenda.criada
+        this.flutuar("📬 Encomenda: livro " + cor, this.larg / 2, 88, "#1a4f9c");
+      }
+      encomendaExpirada(estado, cor) {        // encomenda.expirada
+        this.flutuar("⌛ Prazo estourou (" + cor + ")", this.larg / 2, 88, "#b00020");
+      }
+      entregaConcluida(estado, ganho) {       // entrega.concluida
+        this.redesenharEstante(estado.estante);
+        const e = this.pt.estante;
+        this.flutuar("+" + ganho + " 🪙", e.x, e.y - 22, "#b8860b");
+      }
+      recusado(motivo) {                      // operacao.recusada (só quem pediu)
+        this.cameras.main.shake(180, 0.006);
+        this.flutuar("✋ " + motivo, this.larg / 2, this.alt - 28, "#b00020");
+      }
+      vilaEncerrada() {                       // vila.encerrada
+        this.faixa.setText("🌙 Temporada encerrada");
+        this.add.rectangle(this.larg / 2, this.alt / 2, this.larg, this.alt, 0x000033, 0.35).setDepth(9);
+      }
+    }
+
+    return {
+      iniciar(idContainer) {
+        if (partida) return;
+        partida = new Phaser.Game({
+          type: Phaser.AUTO, parent: idContainer, width: 576, height: 288,
+          pixelArt: true, backgroundColor: "#7bb661", scene: VilaScene, audio: { noAudio: true },
+        });
+      },
+      mostrarEstado: (...a) => chamar("mostrarEstado", ...a),
+      vilaIniciada: (...a) => chamar("vilaIniciada", ...a),
+      escritaIniciada: (...a) => chamar("escritaIniciada", ...a),
+      escritaConcluida: (...a) => chamar("escritaConcluida", ...a),
+      encadernacaoIniciada: (...a) => chamar("encadernacaoIniciada", ...a),
+      encadernacaoConcluida: (...a) => chamar("encadernacaoConcluida", ...a),
+      recursoProduzido: (...a) => chamar("recursoProduzido", ...a),
+      encomendaCriada: (...a) => chamar("encomendaCriada", ...a),
+      encomendaExpirada: (...a) => chamar("encomendaExpirada", ...a),
+      entregaConcluida: (...a) => chamar("entregaConcluida", ...a),
+      recusado: (...a) => chamar("recusado", ...a),
+      vilaEncerrada: (...a) => chamar("vilaEncerrada", ...a),
+    };
+  }
+</script>
+
+<script>
+  // =====================================================================
+  //  A APLICAÇÃO (Vue + Socket.IO)
+  //  Regra de ouro: o cliente NUNCA altera o estado por conta própria.
+  //  Ele só muda quando chega um evento do servidor.
+  // =====================================================================
+  const { createApp, ref, reactive, computed, nextTick } = Vue;
+
+  createApp({
+    setup() {
+      const nome = ref("");
+      const papel = ref("");
+      const conectado = ref(false);
+      const estado = reactive({
+        fase: "aguardando", tinta_papel: 0, producao: 0, intervalo: 0,
+        escribas: 0, limite: 0, manuscritos: 0, escrevendo: 0, encadernando: 0,
+        estante: [], capacidade: 0, cores: [], custo_escrita: 0,
+        tempo_escrita: 0, tempo_encadernacao: 0, encomendas: [],
+        ouro: 0, entregues: 0, expiradas: 0,
+      });
+      const cor = ref("azul");              // cor escolhida para a encadernação
+      const hex = { vermelho: "#c0392b", azul: "#2e6fd1", verde: "#2e8b57", preto: "#2b2b2b" };
+      const avisos = ref([]);
+      const eventos = ref([]);              // linha do tempo do painel de eventos
+      const contadores = reactive({});      // quantas vezes cada evento ocorreu
+      const ocultarProducao = ref(false);
+      const eventosVisiveis = computed(() =>
+        eventos.value.filter((e) => !(ocultarProducao.value && e.nome === "recurso.produzido")));
+      const jogo = criarJogo();      // a vila desenhada (Phaser)
+      let socket = null;
+
+      const porMinuto = computed(() =>
+        estado.intervalo ? Math.round(estado.producao * 60 / estado.intervalo) : 0);
+      const vagas = computed(() => Math.max(0, estado.capacidade - estado.estante.length));
+
+      // Contagem regressiva das encomendas: é só EXIBIÇÃO. O servidor manda o
+      // tempo restante em cada fato; quem decide que o prazo acabou é o
+      // servidor (encomenda.expirada), nunca este relógio.
+      const chegada = ref(Date.now());
+      const agora = ref(Date.now());
+      setInterval(() => { agora.value = Date.now(); }, 1000);
+      function restanteDe(e) {
+        return Math.max(0, e.restante - Math.floor((agora.value - chegada.value) / 1000));
+      }
+
+      function avisar(texto, tipo = "info") {
+        avisos.value.unshift({ texto, tipo });
+        avisos.value = avisos.value.slice(0, 6);
+      }
+
+      function atualizar(d) {
+        Object.assign(estado, d.estado);   // copia o estado enviado pelo servidor
+        chegada.value = Date.now();
+      }
+
+      // ----- painel de eventos (já pronto) -----
+      function resumir(d) {                // transforma os dados do evento em texto curto
+        if (!d) return "";
+        const { estado: e, causa, ...resto } = d;
+        const partes = Object.entries(resto).map(([k, v]) => k + ": " + v);
+        if (e) partes.push("tinta e papel " + e.tinta_papel + ", escribas " + e.escribas + "/" + e.limite + ", ouro " + e.ouro);
+        return partes.join(" · ");
+      }
+      function registrar(sentido, nome, dados, reacao = "") {
+        const tipo = /[._]solicitad[ao]$/.test(nome) ? "pedido" : (nome === "operacao.recusada" ? "recusa" : "fato");
+        contadores[nome] = (contadores[nome] || 0) + 1;
+        eventos.value.unshift({ hora: new Date().toLocaleTimeString(), sentido: sentido, nome, tipo,
+          causa: (dados && dados.causa) || "", dados: resumir(dados), reacao });
+        eventos.value = eventos.value.slice(0, 40);
+      }
+
+      // OUVIR (on): registra o evento no painel e executa a reação do cliente
+      function ouvir(nome, reacao, funcao) {
+        socket.on(nome, (d) => { registrar("recebido", nome, d, reacao); funcao(d); });
+      }
+      // PEDIR (emit): registra o evento no painel e o envia ao servidor
+      function pedir(nome, dados) {
+        registrar("enviado", nome, dados);
+        if (dados === undefined) socket.emit(nome); else socket.emit(nome, dados);
+      }
+
+      function entrar(p) {
+        papel.value = p;
+        socket = io({ auth: { nome: nome.value || "Anônimo", papel: p } });
+        socket.on("connect", () => {
+          conectado.value = true;
+          nextTick(() => jogo.iniciar("jogo"));   // a vila desenhada começa quando a tela aparece
+        });
+
+        // ===== ESCUTAS (on): o cliente reage aos FATOS do servidor =====
+        // Só o servidor muda o estado; aqui o cliente copia o que chegou
+        // (atualizar) e manda a vila desenhada reagir.
+
+        // o servidor entrega o estado só a quem acabou de conectar
+        ouvir("estado.sincronizado", "guarda o estado e desenha a vila", (d) => {
+          atualizar(d);
+          jogo.mostrarEstado(d.estado);
+        });
+
+      }
+
+      // ===== PEDIDOS (emit): o cliente PEDE algo ao servidor =====
+      // O cliente não muda nada aqui: só pede. O resultado volta como evento.
+      function abrirVila() { /* ETAPA 2: pedir "vila.abertura_solicitada" */ }
+      function escrever() { /* ETAPA 3: pedir "escrita.solicitada" */ }
+      function encadernar() { /* ETAPA 5: pedir "encadernacao.solicitada" com a cor escolhida */ }
+      function entregar(id) { /* ETAPA 6: pedir "entrega.solicitada" com o id da encomenda */ }
+      function encerrarVila() { /* ETAPA 7: pedir "vila.encerramento_solicitado" */ }
+
+      return { nome, papel, conectado, estado, cor, hex, avisos, eventosVisiveis, contadores,
+               ocultarProducao, porMinuto, vagas, restanteDe,
+               entrar, abrirVila, escrever, encadernar, entregar, encerrarVila };
+    }
+  }).mount("#app");
+</script>
+</body>
+</html>
