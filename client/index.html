@@ -497,6 +497,27 @@
           jogo.recursoProduzido(d.estado);
         });
 
+        // temporizador de encomendas: chega uma encomenda com prazo
+        ouvir("encomenda.criada", "mostra a encomenda na lista", (d) => {
+          atualizar(d);
+          avisar("Nova encomenda: livro " + d.cor);
+          jogo.encomendaCriada(d.estado, d.cor);
+        });
+        // o prazo estourou: o servidor tira a encomenda da lista
+        ouvir("encomenda.expirada", "remove a encomenda da lista", (d) => {
+          atualizar(d);
+          avisar("A encomenda de livro " + d.cor + " expirou", "erro");
+          jogo.encomendaExpirada(d.estado, d.cor);
+        });
+
+        // alguém entregou um livro: o ouro sobe para todos
+        ouvir("entrega.concluida", "tira o livro da estante e soma o ouro", (d) => {
+          atualizar(d);
+          avisar(d.por + " entregou um livro " + d.cor + " (+" + d.ganho + " 🪙" +
+                 (d.bonus ? ", com bônus de rapidez" : "") + ")", "ok");
+          jogo.entregaConcluida(d.estado, d.ganho);
+        });
+
       }
 
       // ===== PEDIDOS (emit): o cliente PEDE algo ao servidor =====
@@ -504,7 +525,7 @@
       function abrirVila() { pedir("vila.abertura_solicitada"); }
       function escrever() { pedir("escrita.solicitada"); }
       function encadernar() { pedir("encadernacao.solicitada", { cor: cor.value }); }
-      function entregar(id) { /* ETAPA 6: pedir "entrega.solicitada" com o id da encomenda */ }
+      function entregar(id) { pedir("entrega.solicitada", { encomenda: id }); }
       function encerrarVila() { /* ETAPA 7: pedir "vila.encerramento_solicitado" */ }
 
       return { nome, papel, conectado, estado, cor, hex, avisos, eventosVisiveis, contadores,

@@ -119,6 +119,9 @@ async def abrir_vila(sid, dados=None):
     # Os temporizadores começam DEPOIS de avisar que a vila abriu, para que
     # nenhum fato do tempo chegue antes do vila.iniciada.
     sio.start_background_task(producao)
+    sio.start_background_task(gerador_encomendas)
+
+
 # ---------------------------------------------------------------------
 #  Scriptorium: escrever (pedido -> fato -> temporizador -> fato)
 # ---------------------------------------------------------------------
@@ -220,3 +223,70 @@ async def producao():
         await sio.emit("recurso.produzido", fato("temporizador"))
 
 
+async def gerador_encomendas():
+    """Temporizador que faz chegar encomendas de livros com prazo."""
+    while estado["fase"] == "aberta":
+        if len(estado["encomendas"]) < MAX_ENCOMENDAS:
+            enc = {
+                "id": next(ids_encomenda),
+                "cor": random.choice(CORES),
+                "valor": VALOR_ENCOMENDA,
+                "prazo": PRAZO_ENCOMENDA,
+                "expira_em": time.time() + PRAZO_ENCOMENDA,
+            }
+            estado["encomendas"].append(enc)
+            await sio.emit("encomenda.criada",
+                           fato("temporizador", encomenda_id=enc["id"], cor=enc["cor"]))
+            sio.start_background_task(prazo_encomenda, enc["id"])
+        await sio.sleep(INTERVALO_ENCOMENDA)
+
+
+async def prazo_encomenda(id_enc):
+    """Temporizador do prazo: se ninguém entregou a tempo, a encomenda expira."""
+    await sio.sleep(PRAZO_ENCOMENDA)
+    if estado["fase"] != "aberta":
+        return
+    enc = achar_encomenda(id_enc)
+    if enc is None:                # já foi entregue: não há o que expirar
+        return
+    estado["encomendas"].remove(enc)
+    estado["expiradas"] += 1
+    await sio.emit("encomenda.expirada",
+                   fato("encomenda.criada (temporizador)",
+                        encomenda_id=id_enc, cor=enc["cor"]))
+
+
+# ---------------------------------------------------------------------
+#  Entrega: livro da estante -> encomenda -> ouro
+# ---------------------------------------------------------------------
+@sio.on("entrega.solicitada")
+async def entregar(sid, dados=None):
+    pedido = "entrega.solicitada"
+    enc = achar_encomenda((dados or {}).get("encomenda"))
+    if jogadores[sid]["papel"] != "jogador":
+        motivo = "Só jogadores entregam"
+    elif estado["fase"] != "aberta":
+        motivo = "A temporada não está aberta"
+    elif enc is None:
+        # inclui a DISPUTA: se outro jogador entregou antes, ela não existe mais
+        motivo = "Encomenda já entregue ou expirada"
+    elif enc["cor"] not in estado["estante"]:
+        motivo = "Sem livro " + enc["cor"] + " na estante"
+    else:
+        motivo = None
+
+    if motivo:
+        await recusar(sid, motivo, pedido)
+        return
+
+    restante = enc["expira_em"] - time.time()
+    bonus = BONUS_RAPIDA if restante > enc["prazo"] / 2 else 0
+    ganho = enc["valor"] + bonus
+    estado["estante"].remove(enc["cor"])      # remove UM livro dessa cor
+    estado["encomendas"].remove(enc)
+    estado["ouro"] += ganho
+    estado["entregues"] += 1
+    nome = jogadores[sid]["nome"]
+    await sio.emit("entrega.concluida",
+                   fato(pedido, por=nome, cor=enc["cor"], encomenda_id=enc["id"],
+                        ganho=ganho, bonus=bonus))
