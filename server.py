@@ -122,6 +122,20 @@ async def abrir_vila(sid, dados=None):
     sio.start_background_task(gerador_encomendas)
 
 
+@sio.on("vila.encerramento_solicitado")
+async def encerrar_vila(sid, dados=None):
+    pedido = "vila.encerramento_solicitado"
+    if jogadores[sid]["papel"] != "mestre":
+        await recusar(sid, "Só o Mestre pode encerrar a temporada", pedido)
+        return
+    if estado["fase"] != "aberta":
+        await recusar(sid, "A temporada não está aberta", pedido)
+        return
+    estado["fase"] = "encerrada"
+    # os temporizadores em andamento percebem a fase e param sozinhos
+    await sio.emit("vila.encerrada", fato(pedido, ouro_final=estado["ouro"]))
+
+
 # ---------------------------------------------------------------------
 #  Scriptorium: escrever (pedido -> fato -> temporizador -> fato)
 # ---------------------------------------------------------------------

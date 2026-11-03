@@ -518,6 +518,12 @@
           jogo.entregaConcluida(d.estado, d.ganho);
         });
 
+        // o Mestre encerrou: novas ações serão recusadas
+        ouvir("vila.encerrada", "escurece a vila e bloqueia novas ações", (d) => {
+          atualizar(d);
+          avisar("Temporada encerrada. Ouro final: " + d.ouro_final + " 🪙");
+          jogo.vilaEncerrada();
+        });
       }
 
       // ===== PEDIDOS (emit): o cliente PEDE algo ao servidor =====
@@ -526,7 +532,7 @@
       function escrever() { pedir("escrita.solicitada"); }
       function encadernar() { pedir("encadernacao.solicitada", { cor: cor.value }); }
       function entregar(id) { pedir("entrega.solicitada", { encomenda: id }); }
-      function encerrarVila() { /* ETAPA 7: pedir "vila.encerramento_solicitado" */ }
+      function encerrarVila() { pedir("vila.encerramento_solicitado"); }
 
       return { nome, papel, conectado, estado, cor, hex, avisos, eventosVisiveis, contadores,
                ocultarProducao, porMinuto, vagas, restanteDe,
