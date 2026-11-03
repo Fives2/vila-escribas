@@ -102,3 +102,17 @@ async def disconnect(sid):
     jogadores.pop(sid, None)
 
 
+# ---------------------------------------------------------------------
+#  O Mestre abre e encerra a temporada
+# ---------------------------------------------------------------------
+@sio.on("vila.abertura_solicitada")
+async def abrir_vila(sid, dados=None):
+    pedido = "vila.abertura_solicitada"
+    if jogadores[sid]["papel"] != "mestre":
+        await recusar(sid, "Só o Mestre pode abrir a temporada", pedido)
+        return
+    if estado["fase"] != "aguardando":
+        await recusar(sid, "A temporada já foi aberta", pedido)
+        return
+    estado["fase"] = "aberta"
+    await sio.emit("vila.iniciada", fato(pedido))          # para todos

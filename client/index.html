@@ -452,11 +452,24 @@
           jogo.mostrarEstado(d.estado);
         });
 
+        // o Mestre abriu: todos veem a temporada começar
+        ouvir("vila.iniciada", "muda a faixa para temporada aberta", (d) => {
+          atualizar(d);
+          avisar("A temporada começou!", "ok");
+          jogo.vilaIniciada();
+        });
+
+        // o servidor recusou o pedido: só quem pediu recebe isto
+        ouvir("operacao.recusada", "avisa o motivo e a tela treme", (d) => {
+          avisar(d.motivo, "erro");
+          jogo.recusado(d.motivo);
+        });
+
       }
 
       // ===== PEDIDOS (emit): o cliente PEDE algo ao servidor =====
       // O cliente não muda nada aqui: só pede. O resultado volta como evento.
-      function abrirVila() { /* ETAPA 2: pedir "vila.abertura_solicitada" */ }
+      function abrirVila() { pedir("vila.abertura_solicitada"); }
       function escrever() { /* ETAPA 3: pedir "escrita.solicitada" */ }
       function encadernar() { /* ETAPA 5: pedir "encadernacao.solicitada" com a cor escolhida */ }
       function entregar(id) { /* ETAPA 6: pedir "entrega.solicitada" com o id da encomenda */ }
