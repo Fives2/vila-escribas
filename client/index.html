@@ -465,10 +465,23 @@
           avisar(d.por + " começou a escrever");
           jogo.escritaIniciada(d.estado);
         });
+        // o temporizador do servidor terminou a escrita
+        ouvir("escrita.concluida", "finaliza a barra e mostra o manuscrito pronto", (d) => {
+          atualizar(d);
+          avisar("Manuscrito de " + d.por + " pronto!", "ok");
+          jogo.escritaConcluida(d.estado);
+        });
+
         // o servidor recusou o pedido: só quem pediu recebe isto
         ouvir("operacao.recusada", "avisa o motivo e a tela treme", (d) => {
           avisar(d.motivo, "erro");
           jogo.recusado(d.motivo);
+        });
+
+        // temporizador de produção: chega sem ninguém clicar
+        ouvir("recurso.produzido", "atualiza Tinta e Papel e mostra o +N", (d) => {
+          atualizar(d);
+          jogo.recursoProduzido(d.estado);
         });
 
       }

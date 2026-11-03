@@ -116,6 +116,9 @@ async def abrir_vila(sid, dados=None):
         return
     estado["fase"] = "aberta"
     await sio.emit("vila.iniciada", fato(pedido))          # para todos
+    # Os temporizadores começam DEPOIS de avisar que a vila abriu, para que
+    # nenhum fato do tempo chegue antes do vila.iniciada.
+    sio.start_background_task(producao)
 # ---------------------------------------------------------------------
 #  Scriptorium: escrever (pedido -> fato -> temporizador -> fato)
 # ---------------------------------------------------------------------
@@ -143,3 +146,30 @@ async def escrever(sid, dados=None):
     estado["escrevendo"] += 1
     nome = jogadores[sid]["nome"]
     await sio.emit("escrita.iniciada", fato(pedido, por=nome))
+    sio.start_background_task(obra_escrita, nome)
+
+
+async def obra_escrita(nome):
+    """Temporizador: a escrita termina sozinha, sem ninguém clicar."""
+    await sio.sleep(TEMPO_ESCRITA)
+    if estado["fase"] != "aberta":
+        return
+    estado["escribas"] -= 1
+    estado["escrevendo"] -= 1
+    estado["manuscritos"] += 1
+    await sio.emit("escrita.concluida",
+                   fato("escrita.iniciada (temporizador)", por=nome))
+
+
+# ---------------------------------------------------------------------
+#  Passagem do tempo: produção e encomendas
+# ---------------------------------------------------------------------
+async def producao():
+    while estado["fase"] == "aberta":
+        await sio.sleep(INTERVALO)
+        if estado["fase"] != "aberta":
+            break
+        estado["tinta_papel"] += estado["producao"]
+        await sio.emit("recurso.produzido", fato("temporizador"))
+
+
