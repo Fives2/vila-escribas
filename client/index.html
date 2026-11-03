@@ -459,6 +459,12 @@
           jogo.vilaIniciada();
         });
 
+        // Scriptorium: alguém começou a escrever (todos veem a barra de progresso)
+        ouvir("escrita.iniciada", "mostra a barra de escrita no Scriptorium", (d) => {
+          atualizar(d);
+          avisar(d.por + " começou a escrever");
+          jogo.escritaIniciada(d.estado);
+        });
         // o servidor recusou o pedido: só quem pediu recebe isto
         ouvir("operacao.recusada", "avisa o motivo e a tela treme", (d) => {
           avisar(d.motivo, "erro");
@@ -470,7 +476,7 @@
       // ===== PEDIDOS (emit): o cliente PEDE algo ao servidor =====
       // O cliente não muda nada aqui: só pede. O resultado volta como evento.
       function abrirVila() { pedir("vila.abertura_solicitada"); }
-      function escrever() { /* ETAPA 3: pedir "escrita.solicitada" */ }
+      function escrever() { pedir("escrita.solicitada"); }
       function encadernar() { /* ETAPA 5: pedir "encadernacao.solicitada" com a cor escolhida */ }
       function entregar(id) { /* ETAPA 6: pedir "entrega.solicitada" com o id da encomenda */ }
       function encerrarVila() { /* ETAPA 7: pedir "vila.encerramento_solicitado" */ }

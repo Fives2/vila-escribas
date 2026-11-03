@@ -116,3 +116,30 @@ async def abrir_vila(sid, dados=None):
         return
     estado["fase"] = "aberta"
     await sio.emit("vila.iniciada", fato(pedido))          # para todos
+# ---------------------------------------------------------------------
+#  Scriptorium: escrever (pedido -> fato -> temporizador -> fato)
+# ---------------------------------------------------------------------
+@sio.on("escrita.solicitada")
+async def escrever(sid, dados=None):
+    pedido = "escrita.solicitada"
+    # Valide TUDO antes de alterar o estado e sem await no meio.
+    if jogadores[sid]["papel"] != "jogador":
+        motivo = "Só jogadores escrevem"
+    elif estado["fase"] != "aberta":
+        motivo = "A temporada não está aberta"
+    elif estado["tinta_papel"] < CUSTO_ESCRITA:
+        motivo = "Tinta e Papel insuficientes"
+    elif estado["escribas"] >= estado["limite"]:
+        motivo = "Sem escriba livre"
+    else:
+        motivo = None
+
+    if motivo:
+        await recusar(sid, motivo, pedido)       # só quem pediu recebe
+        return
+
+    estado["tinta_papel"] -= CUSTO_ESCRITA
+    estado["escribas"] += 1
+    estado["escrevendo"] += 1
+    nome = jogadores[sid]["nome"]
+    await sio.emit("escrita.iniciada", fato(pedido, por=nome))
