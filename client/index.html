@@ -472,6 +472,19 @@
           jogo.escritaConcluida(d.estado);
         });
 
+        // Bancada: alguém começou a encadernar numa cor
+        ouvir("encadernacao.iniciada", "mostra a barra colorida na Bancada", (d) => {
+          atualizar(d);
+          avisar(d.por + " começou a encadernar um livro " + d.cor);
+          jogo.encadernacaoIniciada(d.estado, d.cor);
+        });
+        // o temporizador terminou: o livro vai para a estante
+        ouvir("encadernacao.concluida", "coloca o livro colorido na estante", (d) => {
+          atualizar(d);
+          avisar("Livro " + d.cor + " na estante!", "ok");
+          jogo.encadernacaoConcluida(d.estado, d.cor);
+        });
+
         // o servidor recusou o pedido: só quem pediu recebe isto
         ouvir("operacao.recusada", "avisa o motivo e a tela treme", (d) => {
           avisar(d.motivo, "erro");
@@ -490,7 +503,7 @@
       // O cliente não muda nada aqui: só pede. O resultado volta como evento.
       function abrirVila() { pedir("vila.abertura_solicitada"); }
       function escrever() { pedir("escrita.solicitada"); }
-      function encadernar() { /* ETAPA 5: pedir "encadernacao.solicitada" com a cor escolhida */ }
+      function encadernar() { pedir("encadernacao.solicitada", { cor: cor.value }); }
       function entregar(id) { /* ETAPA 6: pedir "entrega.solicitada" com o id da encomenda */ }
       function encerrarVila() { /* ETAPA 7: pedir "vila.encerramento_solicitado" */ }
 

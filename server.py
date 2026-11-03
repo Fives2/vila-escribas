@@ -162,6 +162,53 @@ async def obra_escrita(nome):
 
 
 # ---------------------------------------------------------------------
+#  Bancada de encadernação: manuscrito + cor -> livro na estante
+# ---------------------------------------------------------------------
+@sio.on("encadernacao.solicitada")
+async def encadernar(sid, dados=None):
+    pedido = "encadernacao.solicitada"
+    cor = (dados or {}).get("cor")
+    # A estante conta também os livros que ainda estão sendo encadernados:
+    # a vaga é RESERVADA ao iniciar, senão dois pedidos estourariam a estante.
+    if jogadores[sid]["papel"] != "jogador":
+        motivo = "Só jogadores encadernam"
+    elif estado["fase"] != "aberta":
+        motivo = "A temporada não está aberta"
+    elif cor not in CORES:
+        motivo = "Escolha uma cor de encadernação"
+    elif estado["manuscritos"] < 1:
+        motivo = "Sem manuscrito para encadernar"
+    elif estado["escribas"] >= estado["limite"]:
+        motivo = "Sem escriba livre"
+    elif len(estado["estante"]) + estado["encadernando"] >= CAPACIDADE_ESTANTE:
+        motivo = "Estante cheia"
+    else:
+        motivo = None
+
+    if motivo:
+        await recusar(sid, motivo, pedido)
+        return
+
+    estado["manuscritos"] -= 1
+    estado["escribas"] += 1
+    estado["encadernando"] += 1
+    nome = jogadores[sid]["nome"]
+    await sio.emit("encadernacao.iniciada", fato(pedido, por=nome, cor=cor))
+    sio.start_background_task(obra_encadernacao, nome, cor)
+
+
+async def obra_encadernacao(nome, cor):
+    await sio.sleep(TEMPO_ENCADERNACAO)
+    if estado["fase"] != "aberta":
+        return
+    estado["escribas"] -= 1
+    estado["encadernando"] -= 1
+    estado["estante"].append(cor)             # o livro vai para a estante
+    await sio.emit("encadernacao.concluida",
+                   fato("encadernacao.iniciada (temporizador)", por=nome, cor=cor))
+
+
+# ---------------------------------------------------------------------
 #  Passagem do tempo: produção e encomendas
 # ---------------------------------------------------------------------
 async def producao():
